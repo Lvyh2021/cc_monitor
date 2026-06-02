@@ -88,6 +88,7 @@ function readSessionLastLine(filePath) {
       assistantContentTypes,
       lastAssistantTimestamp: lastAssistant?.timestamp || '',
       sessionId: lastMsg.sessionId || '',
+      fileMtimeMs: statTime,  // 文件最后修改时间，用于中断检测
     }
 
     sessionCache.set(filePath, { mtimeMs: statTime, data })
@@ -161,8 +162,9 @@ ipcMain.handle('get-sessions', () => {
       // 没有 stop_reason → assistant 正在流式输出 → 工作中
       state = 'working'
     } else if (s.lastType === 'user' && age < 10000) {
-      // 用户刚发言 10s 内 → 工作中（等待 AI 响应）
-      state = 'working'
+      // 用户刚发言 10s 内 → 用 mtime 判断是否有后续活动
+      const mtimeAge = now - (s.fileMtimeMs || 0)
+      state = mtimeAge < 3000 ? 'working' : 'idle'
     } else if (s.lastType === 'user' && !assistantAfterUser && age >= 10000) {
       // user 发言后 10s+ 无 assistant 回复 → 可能已中断，判空闲
       state = 'idle'
