@@ -18,18 +18,13 @@
 
     <!-- 展开态 -->
     <div v-else class="expanded-list">
-
       <div class="header">CC Monitor</div>
-      <div class="divider"></div>.
-      0
-      <div class="list-body">
-        <SessionRow
-          v-for="s in store.sessions"
-          :key="s.sessionId"
-          :session="s"
-        />
-        <div v-if="store.sessions.length === 0" class="empty-row">No active sessions</div>
-      </div>
+      <SessionRow
+        v-for="s in store.sessions"
+        :key="s.sessionId"
+        :session="s"
+      />
+      <div v-if="store.sessions.length === 0" class="empty-row">No active sessions</div>
     </div>
   </div>
 </template>
