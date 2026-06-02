@@ -1,0 +1,19 @@
+appId: com.cc-monitor.app
+productName: CC Monitor
+directories:
+  output: release
+files:
+  - dist/**/*
+  - main.js
+  - preload.js
+  - package.json
+win:
+  target: nsis
+  artifactName: CC-Monitor-Setup-${version}.exe
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+extraMetadata:
+  main: main.js

@@ -2,6 +2,7 @@
   "name": "cc-monitor",
   "version": "1.0.0",
   "description": "Claude Code Session Monitor — Dynamic Island for Windows",
+  "author": "CC Monitor",
   "main": "main.js",
   "scripts": {
     "dev": "vite",
@@ -20,6 +21,7 @@
     "concurrently": "^8.2.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.0",
+    "node-7z": "^3.0.0",
     "vite": "^5.0.0",
     "wait-on": "^7.2.0"
   }

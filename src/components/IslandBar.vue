@@ -20,7 +20,8 @@
     <div v-else class="expanded-list">
 
       <div class="header">CC Monitor</div>
-      <div class="divider"></div>
+      <div class="divider"></div>.
+      0
       <div class="list-body">
         <SessionRow
           v-for="s in store.sessions"
