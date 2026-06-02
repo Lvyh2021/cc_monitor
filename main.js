@@ -10,10 +10,13 @@ let isQuitting = false
 function createWindow() {
   const { width: screenW } = require('electron').screen.getPrimaryDisplay().workAreaSize
 
+  // 初始用折叠态尺寸（300x36），展开时通过 IPC 动态调整为 420x300
+  const W = 300, H = 36
+
   mainWindow = new BrowserWindow({
-    width: 440,
-    height: 300,
-    x: Math.round((screenW - 440) / 2),
+    width: W,
+    height: H,
+    x: Math.round((screenW - W) / 2),
     y: 12,
     transparent: true,
     frame: false,
@@ -272,6 +275,16 @@ function checkClaudeProcesses() {
 }
 
 // ── IPC ─────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('resize-window', (_, { width, height }) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+
+  const screen = require('electron').screen
+  const screenW = screen.getPrimaryDisplay().workAreaSize.width
+  const newX = Math.round((screenW - width) / 2)
+
+  mainWindow.setBounds({ x: newX, y: 12, width, height })
+})
 
 ipcMain.handle('get-sessions', () => {
   const sessions = []

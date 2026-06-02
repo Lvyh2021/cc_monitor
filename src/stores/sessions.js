@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 const POLL_INTERVAL = 2000 // 2 秒轮询
 
@@ -70,6 +70,15 @@ export const useSessionsStore = defineStore('sessions', () => {
     clearTimeout(hoverTimer.value)
     hoverTimer.value = setTimeout(() => { expanded.value = false }, 500)
   }
+
+  // 折叠/展开时动态调整窗口大小，避免折叠态透明区域阻挡点击
+  watch(expanded, (val) => {
+    if (val) {
+      window.ccMonitor?.resizeWindow(420, 300)
+    } else {
+      window.ccMonitor?.resizeWindow(300, 36)
+    }
+  }, { flush: 'post' })
 
   return {
     sessions,
