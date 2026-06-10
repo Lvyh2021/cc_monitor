@@ -5,8 +5,8 @@
     @mouseenter="store.onMouseEnter()"
     @mouseleave="store.onMouseLeave()"
   >
-    <!-- 折叠态 -->
-    <div v-if="!expandedStore" class="collapsed">
+    <!-- 折叠条 — 展开时隐藏 -->
+    <div class="collapsed">
       <template v-if="store.sessions.length">
         <span class="mini-dot" :style="{ background: color }"></span>
         <span class="name">{{ name }}</span>
@@ -17,10 +17,9 @@
       <span v-if="balanceText" class="balance-chip">{{ balanceText }}</span>
     </div>
 
-    <!-- 展开态 -->
-    <div v-else class="expanded-list">
-      <div class="header">CC Monitor</div>
-      <!-- DeepSeek 余额 -->
+    <!-- 展开内容 -->
+    <div class="expand-body">
+      <div class="header">Model usage</div>
       <div v-if="ds.balance && !ds.balance.error" class="ds-bar">
         <span class="ds-item">余额 <b>¥{{ dsBalance }}</b></span>
         <span v-if="hasCost" class="ds-item">本月 <b>¥{{ ds.cost.month }}</b></span>
@@ -29,6 +28,7 @@
       <div v-else-if="ds.error || !store.config.apiKey" class="ds-bar ds-warn">
         <span class="ds-item">DeepSeek 未配置 — 右键托盘设置</span>
       </div>
+      <div class="section-label">Sessions</div>
       <SessionRow
         v-for="s in store.sessions"
         :key="s.sessionId"
@@ -75,12 +75,19 @@ const hasCost = computed(() => ds.value.cost && !ds.value.cost.error && ds.value
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  border-radius: 14px;
   overflow: hidden;
-  transition: width 0.35s ease, height 0.35s ease, border-radius 0.35s ease;
+  width: 300px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
+}
+.island.expanded {
+  width: 420px;
+  border-radius: 18px;
 }
 
-/* 折叠态 */
+/* 折叠条 */
 .collapsed {
   display: flex;
   align-items: center;
@@ -88,6 +95,7 @@ const hasCost = computed(() => ds.value.cost && !ds.value.cost.error && ds.value
   height: 32px;
   padding: 0 14px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .mini-dot {
   width: 8px;
@@ -95,6 +103,7 @@ const hasCost = computed(() => ds.value.cost && !ds.value.cost.error && ds.value
   border-radius: 50%;
   flex-shrink: 0;
   box-shadow: 0 0 6px currentColor;
+  transition: background 0.3s;
 }
 .name {
   font-size: 13px;
@@ -102,6 +111,7 @@ const hasCost = computed(() => ds.value.cost && !ds.value.cost.error && ds.value
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.3s;
 }
 .state-badge {
   font-size: 12px;
@@ -119,12 +129,27 @@ const hasCost = computed(() => ds.value.cost && !ds.value.cost.error && ds.value
   font-size: 12px;
   color: #64748b;
 }
-
-/* 展开态 */
-.expanded {
-  width: 400px;
-  border-radius: 18px;
+/* 展开时隐藏折叠条 */
+.island.expanded .collapsed {
+  opacity: 0;
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+  transition: opacity 0.2s ease;
 }
+
+/* 展开内容 — 只用 opacity 过渡（GPU 加速，不触发重排） */
+.expand-body {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+.island.expanded .expand-body {
+  max-height: none;
+  opacity: 1;
+}
+
 .header {
   font-size: 11px;
   color: #64748b;
@@ -132,13 +157,12 @@ const hasCost = computed(() => ds.value.cost && !ds.value.cost.error && ds.value
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-.divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.06);
-  margin: 0 14px;
-}
-.list-body {
-  padding: 4px 0 8px;
+.section-label {
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 14px 4px;
 }
 .empty-row {
   padding: 20px 14px;

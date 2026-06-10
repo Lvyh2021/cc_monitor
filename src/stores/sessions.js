@@ -114,12 +114,16 @@ export const useSessionsStore = defineStore('sessions', () => {
     hoverTimer.value = setTimeout(() => { expanded.value = false }, 500)
   }
 
-  // 折叠/展开时动态调整窗口大小，避免折叠态透明区域阻挡点击
+  // 折叠/展开时动态调整窗口大小
+  let resizeTimer = null
   watch(expanded, (val) => {
+    clearTimeout(resizeTimer)
     if (val) {
       window.ccMonitor?.resizeWindow(420, 300)
     } else {
-      window.ccMonitor?.resizeWindow(300, 36)
+      resizeTimer = setTimeout(() => {
+        window.ccMonitor?.resizeWindow(300, 36)
+      }, 200)
     }
   }, { flush: 'post' })
 
