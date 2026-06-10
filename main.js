@@ -167,6 +167,118 @@ function createTrayIcon() {
   return nativeImage.createFromBuffer(png, { width: W, height: H })
 }
 
+function createSettingsWindow() {
+  const cfg = loadConfig()
+  const curApiKey = (cfg.apiKey || '').replace(/"/g, '&quot;')
+  const curHeaders = cfg.platformToken
+    ? `{"authorization": "Bearer ${cfg.platformToken}"}`
+    : ''
+  const curCookies = cfg.platformCookies
+    ? '{' + cfg.platformCookies.split('; ').map(p => { const i = p.indexOf('='); return i > 0 ? `"${p.slice(0,i)}": "${p.slice(i+1)}"` : '' }).filter(Boolean).join(', ') + '}'
+    : ''
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1e293b;color:#e2e8f0;padding:20px}
+h2{font-size:16px;margin-bottom:4px}
+.desc{font-size:11px;color:#64748b;margin-bottom:16px}
+.row{margin-bottom:12px}
+.row label{display:block;font-size:12px;color:#94a3b8;margin-bottom:4px}
+.row input,.row textarea{width:100%;background:#0f172a;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 10px;color:#e2e8f0;font-size:12px;font-family:monospace;outline:none}
+.row textarea{resize:vertical;min-height:80px}
+.row input:focus,.row textarea:focus{border-color:#4ade80}
+.btn{font-size:12px;padding:6px 16px;border-radius:8px;cursor:pointer;border:none}
+.btn-parse{background:#334155;color:#e2e8f0;margin-top:8px}
+.btn-parse:hover{background:#475569}
+.preview{background:#0f172a;border-radius:8px;padding:10px;font-size:11px;font-family:monospace;color:#94a3b8;margin:12px 0;max-height:100px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.btn-cancel{background:rgba(255,255,255,.06);color:#94a3b8}
+.btn-save{background:#16a34a;color:#fff}
+.btn-save:hover{background:#15803d}
+.success{color:#4ade80;font-size:12px;margin-left:12px}
+</style></head><body>
+<h2>DeepSeek API 配置</h2>
+<p class="desc">粘贴 headers 和 cookies 字典，自动提取所需信息</p>
+<div class="row">
+  <label>余额 API Key</label>
+  <input id="apiKey" type="password" placeholder="sk-..." value="${curApiKey}">
+</div>
+<div class="row">
+  <label>Headers（粘贴 headers 字典）</label>
+  <textarea id="rawHeaders" placeholder='{"authorization": "Bearer xxx", "user-agent": "..."}'>${curHeaders}</textarea>
+</div>
+<div class="row">
+  <label>Cookies（粘贴 cookies 字典）</label>
+  <textarea id="rawCookies" placeholder='{"intercom-device-id-guh50jw4": "xxx", "cf_clearance": "yyy"}'>${curCookies}</textarea>
+</div>
+<button class="btn btn-parse" onclick="parse()">自动解析</button>
+<div class="preview" id="preview" style="display:none"></div>
+<div class="actions">
+  <button class="btn btn-cancel" onclick="close()">取消</button>
+  <button class="btn btn-save" onclick="save()">保存</button>
+  <span class="success" id="msg"></span>
+</div>
+<script>
+const {ipcRenderer} = require('electron')
+function tryParseJSON(text) {
+  // 先尝试标准 JSON
+  try { return JSON.parse(text) } catch(e) {}
+  // 去掉尾部逗号再试（JSON5/Python 风格）
+  const fixed = text.replace(/,(\\s*[}\\]])/g, '$1')
+  try { return JSON.parse(fixed) } catch(e) {}
+  // 单引号 → 双引号，再试
+  const fixed2 = fixed.replace(/'/g, '"')
+  try { return JSON.parse(fixed2) } catch(e) {}
+  return null
+}
+function parse() {
+  const hdrRaw = document.getElementById('rawHeaders').value.trim()
+  const ckRaw = document.getElementById('rawCookies').value.trim()
+  let auth = ''
+  let cookieStr = ''
+  // 解析 headers：找 authorization 或 Authorization
+  const hdrObj = tryParseJSON(hdrRaw) || {}
+  for (const [k, v] of Object.entries(hdrObj)) {
+    if (k.toLowerCase() === 'authorization') {
+      auth = v.replace(/^Bearer\\s*/i, '')
+      break
+    }
+  }
+  // 解析 cookies
+  const ckObj = tryParseJSON(ckRaw) || {}
+  cookieStr = Object.entries(ckObj).map(([k, v]) => k + '=' + v).join('; ')
+  const prev = document.getElementById('preview')
+  prev.style.display = 'block'
+  prev.textContent = 'Authorization Bearer: ' + (auth ? auth.slice(0,20) + '...' : '(未解析到)') + '\\nCookies: ' + (cookieStr ? cookieStr.slice(0,100) + (cookieStr.length>100?'...':'') : '(未解析到)')
+  window._parsed = { auth, cookies: cookieStr }
+}
+function save() {
+  const data = {
+    apiKey: document.getElementById('apiKey').value.trim(),
+    platformToken: window._parsed ? window._parsed.auth : '',
+    platformCookies: window._parsed ? window._parsed.cookies : '',
+  }
+  ipcRenderer.invoke('save-config', data).then(() => {
+    document.getElementById('msg').textContent = '已保存'
+  })
+}
+function close() { window.close() }
+window.onload = () => { if (document.getElementById('rawHeaders').value) parse() }
+</script></body></html>`
+
+  const win = new BrowserWindow({
+    width: 560, height: 580,
+    resizable: false,
+    title: 'CC Monitor — DeepSeek 设置',
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  })
+  win.setMenuBarVisibility(false)
+  win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
+}
+
 function createTray() {
   tray = new Tray(createTrayIcon())
   tray.setToolTip('CC Monitor')
@@ -181,6 +293,10 @@ function createTray() {
           mainWindow.show()
         }
       },
+    },
+    {
+      label: 'DeepSeek 设置',
+      click: () => { createSettingsWindow() },
     },
     { type: 'separator' },
     {
@@ -357,6 +473,109 @@ ipcMain.handle('get-sessions', () => {
 
     return { ...s, state, isAlive }
   }).sort((a, b) => new Date(b.lastTimestamp) - new Date(a.lastTimestamp))
+})
+
+// ── 配置文件 ─────────────────────────────────────────────────────────────────
+const CONFIG_PATH = path.join(app.getPath('userData'), 'config.json')
+
+function loadConfig() {
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
+    }
+  } catch (e) { console.error('[config] load error:', e.message) }
+  return {}
+}
+
+function saveConfig(data) {
+  try { fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2), 'utf-8') }
+  catch (e) { console.error('[config] save error:', e.message) }
+}
+
+// ── DeepSeek 余额 & 消费 ────────────────────────────────────────────────────
+async function fetchDeepSeekStatus(apiKey, cookies, authToken) {
+  const https = require('https')
+
+  if (!apiKey) {
+    return { balance: null, cost: null, error: 'DEEPSEEK_API_KEY not set' }
+  }
+
+  console.log('[deepseek] fetching with key:', apiKey.slice(0, 8) + '...')
+
+  const get = (url, headers) => new Promise((resolve, reject) => {
+    https.get(url, { headers }, res => {
+      let body = ''
+      res.on('data', d => body += d)
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)) }
+        catch { reject(new Error(body)) }
+      })
+    }).on('error', reject)
+  })
+
+  let balance = null, cost = null
+
+  // 1. 余额
+  try {
+    balance = await get('https://api.deepseek.com/user/balance', {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    })
+    console.log('[deepseek] balance fetched:', JSON.stringify(balance).slice(0, 150))
+  } catch (e) { balance = { error: e.message }; console.error('[deepseek] balance error:', e.message) }
+
+  // 2. 本月消费（需 cookies + authToken）
+  if (cookies && authToken) {
+    const now = new Date()
+    try {
+      const data = await get(
+        `https://platform.deepseek.com/api/v0/usage/cost?month=${now.getMonth() + 1}&year=${now.getFullYear()}`,
+        {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+          'Cookie': cookies,
+          'User-Agent': 'Mozilla/5.0',
+        }
+      )
+      if (data.code === 0 && data.data?.biz_data?.[0]) {
+        const biz = data.data.biz_data[0]
+        // 月度总计
+        let monthTotal = 0
+        for (const m of biz.total) {
+          for (const u of m.usage) monthTotal += parseFloat(u.amount)
+        }
+        // 今日
+        const today = now.toISOString().slice(0, 10)
+        const todayEntry = biz.days?.find(d => d.date === today)
+        let todayTotal = 0
+        if (todayEntry) {
+          for (const m of todayEntry.data) {
+            for (const u of m.usage) todayTotal += parseFloat(u.amount)
+          }
+        }
+        cost = { month: +monthTotal.toFixed(2), today: +todayTotal.toFixed(2) }
+      }
+      console.log('[deepseek] cost fetched:', cost)
+  } catch (e) { cost = { error: e.message }; console.error('[deepseek] cost error:', e.message) }
+  }
+
+  const result = { balance, cost }
+  console.log('[deepseek] result:', JSON.stringify(result).slice(0, 200))
+  return result
+}
+
+ipcMain.handle('get-deepseek-status', async () => {
+  const cfg = loadConfig()
+  return await fetchDeepSeekStatus(cfg.apiKey, cfg.platformCookies, cfg.platformToken)
+})
+
+ipcMain.handle('get-config', () => {
+  return loadConfig()
+})
+
+ipcMain.handle('save-config', (_, data) => {
+  saveConfig(data)
+  return { ok: true }
 })
 
 // ── 启动 ────────────────────────────────────────────────────────────────────

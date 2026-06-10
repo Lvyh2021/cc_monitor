@@ -5,7 +5,7 @@
     @mouseenter="store.onMouseEnter()"
     @mouseleave="store.onMouseLeave()"
   >
-    <!-- 折叠态：显示第一个 session -->
+    <!-- 折叠态 -->
     <div v-if="!expandedStore" class="collapsed">
       <template v-if="store.sessions.length">
         <span class="mini-dot" :style="{ background: color }"></span>
@@ -14,11 +14,21 @@
         <span v-if="store.sessions.length > 1" class="more">+{{ store.sessions.length - 1 }}</span>
       </template>
       <span v-else class="empty">No sessions</span>
+      <span v-if="balanceText" class="balance-chip">{{ balanceText }}</span>
     </div>
 
     <!-- 展开态 -->
     <div v-else class="expanded-list">
       <div class="header">CC Monitor</div>
+      <!-- DeepSeek 余额 -->
+      <div v-if="ds.balance && !ds.balance.error" class="ds-bar">
+        <span class="ds-item">余额 <b>¥{{ dsBalance }}</b></span>
+        <span v-if="hasCost" class="ds-item">本月 <b>¥{{ ds.cost.month }}</b></span>
+        <span v-if="hasCost" class="ds-item">今日 <b>¥{{ ds.cost.today }}</b></span>
+      </div>
+      <div v-else-if="ds.error || !store.config.apiKey" class="ds-bar ds-warn">
+        <span class="ds-item">DeepSeek 未配置 — 右键托盘设置</span>
+      </div>
       <SessionRow
         v-for="s in store.sessions"
         :key="s.sessionId"
@@ -41,6 +51,18 @@ const first = computed(() => store.sessions[0])
 const color = computed(() => first.value ? useStateColor(first.value.state) : '#94a3b8')
 const label = computed(() => first.value ? useStateLabel(first.value.state) : '')
 const name = computed(() => first.value ? (first.value.projectName || first.value.slug || '?') : '')
+
+const ds = computed(() => store.deepseekStatus)
+const dsBalance = computed(() => {
+  const b = ds.value.balance
+  if (!b || b.error) return null
+  return b.balance_infos?.[0]?.total_balance || null
+})
+const balanceText = computed(() => {
+  const b = dsBalance.value
+  return b ? `¥${b}` : null
+})
+const hasCost = computed(() => ds.value.cost && !ds.value.cost.error && ds.value.cost.month)
 </script>
 
 <style scoped>
@@ -123,5 +145,30 @@ const name = computed(() => first.value ? (first.value.projectName || first.valu
   font-size: 12px;
   color: #64748b;
   text-align: center;
+}
+
+/* DeepSeek 余额 */
+.balance-chip {
+  font-size: 11px;
+  color: #4ade80;
+  flex-shrink: 0;
+  background: rgba(74, 222, 128, 0.1);
+  padding: 1px 8px;
+  border-radius: 8px;
+}
+.ds-bar {
+  display: flex;
+  gap: 16px;
+  padding: 4px 14px 6px;
+  font-size: 11px;
+  color: #94a3b8;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.ds-warn {
+  color: #eab308;
+}
+.ds-item b {
+  color: #4ade80;
+  font-weight: 600;
 }
 </style>

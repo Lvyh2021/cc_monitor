@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 
 const POLL_INTERVAL = 2000 // 2 秒轮询
+const DEEPSEEK_INTERVAL = 30000 // 30 秒轮询
 
 export const useStateColor = (state) => {
   const map = {
@@ -29,14 +30,41 @@ export const useSessionsStore = defineStore('sessions', () => {
   const sessions = ref([])
   const expanded = ref(false)
   const hoverTimer = ref(null)
+  const deepseekStatus = ref({ balance: null, cost: null })
+  const config = ref({ apiKey: '', platformToken: '', platformCookies: '' })
 
   let pollTimer = null
+  let deepseekTimer = null
+
+  async function loadSettings() {
+    if (!window.ccMonitor) return
+    try {
+      const cfg = await window.ccMonitor.getConfig()
+      if (cfg) {
+        config.value.apiKey = cfg.apiKey || ''
+        config.value.platformToken = cfg.platformToken || ''
+        config.value.platformCookies = cfg.platformCookies || ''
+      }
+    } catch (e) { console.error('loadConfig error:', e) }
+  }
+
+  async function saveSettings() {
+    if (!window.ccMonitor) return
+    try {
+      await window.ccMonitor.saveConfig({
+        apiKey: config.value.apiKey,
+        platformToken: config.value.platformToken,
+        platformCookies: config.value.platformCookies,
+      })
+      // 保存后立即刷新余额
+      pollDeepseek()
+    } catch (e) { console.error('saveConfig error:', e) }
+  }
 
   async function refresh() {
     if (!window.ccMonitor) return
     try {
       const data = await window.ccMonitor.getSessions()
-      // 过滤：隐藏 5 分钟前的已完成 session
       const now = Date.now()
       sessions.value = data.filter(s => {
         if (s.state === 'completed') {
@@ -51,13 +79,28 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   function startPolling() {
     refresh()
+    loadSettings().then(() => pollDeepseek())
     pollTimer = setInterval(refresh, POLL_INTERVAL)
+    deepseekTimer = setInterval(pollDeepseek, DEEPSEEK_INTERVAL)
   }
 
   function stopPolling() {
     if (pollTimer) {
       clearInterval(pollTimer)
       pollTimer = null
+    }
+    if (deepseekTimer) {
+      clearInterval(deepseekTimer)
+      deepseekTimer = null
+    }
+  }
+
+  async function pollDeepseek() {
+    if (!window.ccMonitor) return
+    try {
+      deepseekStatus.value = await window.ccMonitor.getDeepseekStatus()
+    } catch (e) {
+      console.error('getDeepseekStatus error:', e)
     }
   }
 
@@ -83,6 +126,10 @@ export const useSessionsStore = defineStore('sessions', () => {
   return {
     sessions,
     expanded,
+    deepseekStatus,
+    config,
+    loadSettings,
+    saveSettings,
     refresh,
     startPolling,
     stopPolling,
